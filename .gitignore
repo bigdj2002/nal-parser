@@ -1,0 +1,8 @@
+# vscode setting
+.vscode
+
+# output json file
+.json
+
+# stream files
+*.hevc
