@@ -639,63 +639,74 @@ static inline unsigned int getMaxCUDepthOffset(const hevc::ChromaFormat chFmt, c
 
 void parseNalH265::vps_parse(unsigned char *nal_bitstream, hevc::vps *pcVPS, int curLen, parsingLevel level)
 {
+  for (int i = 0; i < curLen; i++)
+    m_bits->m_fifo.push_back(nal_bitstream[i]);
+  setBitstream(m_bits);
+
+  // bool isVclNalUnit = (m_pcBitstream->m_fifo[0] & 64) == 0;
+  // convertPayloadToRBSP(m_pcBitstream->m_fifo, m_pcBitstream, isVclNalUnit);
+  m_pcBitstream->m_fifo_idx = 2;
+  m_pcBitstream->m_num_held_bits = 0;
+  m_pcBitstream->m_held_bits = 1;
+  m_pcBitstream->m_numBitsRead = 16;
+
   unsigned int uiCode;
 
   xReadCode(4, uiCode, "vps_video_parameter_set_id");
-  pcVPS->setVPSId(uiCode);
+  pcVPS->m_VPSId = uiCode;
   xReadFlag(uiCode, "vps_base_layer_internal_flag");
   assert(uiCode == 1);
   xReadFlag(uiCode, "vps_base_layer_available_flag");
   assert(uiCode == 1);
   xReadCode(6, uiCode, "vps_max_layers_minus1");
   xReadCode(3, uiCode, "vps_max_sub_layers_minus1");
-  pcVPS->setMaxTLayers(uiCode + 1);
+  pcVPS->m_uiMaxTLayers = uiCode + 1;
   assert(uiCode + 1 <= MAX_TLAYER);
   xReadFlag(uiCode, "vps_temporal_id_nesting_flag");
-  pcVPS->setTemporalNestingFlag(uiCode ? true : false);
-  assert(pcVPS->getMaxTLayers() > 1 || pcVPS->getTemporalNestingFlag());
+  pcVPS->m_bTemporalIdNestingFlag = uiCode ? true : false;
+  assert(pcVPS->m_uiMaxTLayers > 1 || pcVPS->m_bTemporalIdNestingFlag);
   xReadCode(16, uiCode, "vps_reserved_0xffff_16bits");
   assert(uiCode == 0xffff);
-  parsePTL(pcVPS->getPTL(), true, pcVPS->getMaxTLayers() - 1);
+  parsePTL(&pcVPS->m_pcPTL, true, pcVPS->m_uiMaxTLayers - 1);
   unsigned int subLayerOrderingInfoPresentFlag;
   xReadFlag(subLayerOrderingInfoPresentFlag, "vps_sub_layer_ordering_info_present_flag");
-  for (unsigned int i = 0; i <= pcVPS->getMaxTLayers() - 1; i++)
+  for (unsigned int i = 0; i <= pcVPS->m_uiMaxTLayers - 1; i++)
   {
     xReadUvlc(uiCode, "vps_max_dec_pic_buffering_minus1[i]");
-    pcVPS->setMaxDecPicBuffering(uiCode + 1, i);
+    pcVPS->m_uiMaxDecPicBuffering[i] = uiCode + 1;
     xReadUvlc(uiCode, "vps_max_num_reorder_pics[i]");
-    pcVPS->setNumReorderPics(uiCode, i);
+    pcVPS->m_numReorderPics[i] = uiCode;
     xReadUvlc(uiCode, "vps_max_latency_increase_plus1[i]");
-    pcVPS->setMaxLatencyIncrease(uiCode, i);
+    pcVPS->m_uiMaxLatencyIncrease[i] = uiCode;
 
     if (!subLayerOrderingInfoPresentFlag)
     {
-      for (i++; i <= pcVPS->getMaxTLayers() - 1; i++)
+      for (i++; i <= pcVPS->m_uiMaxTLayers - 1; i++)
       {
-        pcVPS->setMaxDecPicBuffering(pcVPS->getMaxDecPicBuffering(0), i);
-        pcVPS->setNumReorderPics(pcVPS->getNumReorderPics(0), i);
-        pcVPS->setMaxLatencyIncrease(pcVPS->getMaxLatencyIncrease(0), i);
+        pcVPS->m_uiMaxDecPicBuffering[i] = pcVPS->m_uiMaxDecPicBuffering[0] + 1;
+        pcVPS->m_numReorderPics[i] = pcVPS->m_numReorderPics[0];
+        pcVPS->m_uiMaxLatencyIncrease[i] = pcVPS->m_uiMaxLatencyIncrease[0];
       }
       break;
     }
   }
 
-  assert(pcVPS->getNumHrdParameters() < hevc::MAX_VPS_OP_SETS_PLUS1);
-  assert(pcVPS->getMaxNuhReservedZeroLayerId() < hevc::MAX_VPS_NUH_RESERVED_ZERO_LAYER_ID_PLUS1);
+  assert(pcVPS->m_numHrdParameters < hevc::MAX_VPS_OP_SETS_PLUS1);
+  assert(pcVPS->m_maxNuhReservedZeroLayerId < hevc::MAX_VPS_NUH_RESERVED_ZERO_LAYER_ID_PLUS1);
   xReadCode(6, uiCode, "vps_max_layer_id");
-  pcVPS->setMaxNuhReservedZeroLayerId(uiCode);
+  pcVPS->m_maxNuhReservedZeroLayerId = uiCode;
   xReadUvlc(uiCode, "vps_num_layer_sets_minus1");
-  pcVPS->setMaxOpSets(uiCode + 1);
-  for (unsigned int opsIdx = 1; opsIdx <= (pcVPS->getMaxOpSets() - 1); opsIdx++)
+  pcVPS->m_numOpSets = uiCode + 1;
+  for (unsigned int opsIdx = 1; opsIdx <= (pcVPS->m_numOpSets - 1); opsIdx++)
   {
-    for (unsigned int i = 0; i <= pcVPS->getMaxNuhReservedZeroLayerId(); i++)
+    for (unsigned int i = 0; i <= pcVPS->m_maxNuhReservedZeroLayerId; i++)
     {
       xReadFlag(uiCode, "layer_id_included_flag[opsIdx][i]");
-      pcVPS->setLayerIdIncludedFlag(uiCode == 1 ? true : false, opsIdx, i);
+      pcVPS->m_layerIdIncludedFlag[opsIdx][i] = uiCode == 1 ? true : false;
     }
   }
 
-  hevc::TimingInfo *timingInfo = pcVPS->getTimingInfo();
+  hevc::TimingInfo *timingInfo = &(pcVPS->m_timingInfo);
   xReadFlag(uiCode, "vps_timing_info_present_flag");
   timingInfo->m_timingInfoPresentFlag = uiCode ? true : false;
   if (timingInfo->m_timingInfoPresentFlag)
@@ -713,27 +724,30 @@ void parseNalH265::vps_parse(unsigned char *nal_bitstream, hevc::vps *pcVPS, int
     }
 
     xReadUvlc(uiCode, "vps_num_hrd_parameters");
-    pcVPS->setNumHrdParameters(uiCode);
+    pcVPS->m_numHrdParameters = uiCode;
 
-    if (pcVPS->getNumHrdParameters() > 0)
+    if (pcVPS->m_numHrdParameters > 0)
     {
-      pcVPS->createHrdParamBuffer();
+      // pcVPS->createHrdParamBuffer();
+      pcVPS->m_hrdParameters.resize(pcVPS->m_numHrdParameters);
+      pcVPS->m_hrdOpSetIdx.resize(pcVPS->m_numHrdParameters);
+      pcVPS->m_cprmsPresentFlag.resize(pcVPS->m_numHrdParameters);
     }
-    for (unsigned int i = 0; i < pcVPS->getNumHrdParameters(); i++)
+    for (unsigned int i = 0; i < pcVPS->m_numHrdParameters; i++)
     {
       xReadUvlc(uiCode, "hrd_layer_set_idx[i]");
-      pcVPS->setHrdOpSetIdx(uiCode, i);
+      pcVPS->m_hrdOpSetIdx[i] = uiCode;
       if (i > 0)
       {
         xReadFlag(uiCode, "cprms_present_flag[i]");
-        pcVPS->setCprmsPresentFlag(uiCode == 1 ? true : false, i);
+        pcVPS->m_cprmsPresentFlag[i] = uiCode == 1 ? true : false;
       }
       else
       {
-        pcVPS->setCprmsPresentFlag(true, i);
+        pcVPS->m_cprmsPresentFlag[i] = true;
       }
 
-      parseHrdParameters(pcVPS->getHrdParameters(i), pcVPS->getCprmsPresentFlag(i), pcVPS->getMaxTLayers() - 1);
+      parseHrdParameters(&pcVPS->m_hrdParameters[i], pcVPS->m_cprmsPresentFlag[i], pcVPS->m_uiMaxTLayers - 1);
     }
   }
 
