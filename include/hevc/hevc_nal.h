@@ -3,7 +3,7 @@
 #include "hevc_vlc.h"
 #include "nal_parse.h"
 
-class parseNalH265 : public parseLib<hevc::sps, hevc::pps>, public SyntaxElementParser, public TComInputBitstream
+class parseNalH265 : public parseLib<hevc:: vps, hevc::sps, hevc::pps>, public SyntaxElementParser, public TComInputBitstream
 {
 public:
   parseNalH265(){};
@@ -26,6 +26,7 @@ protected:
 
 public:
   void setBitstream(TComInputBitstream *p) { m_pcBitstream = p; }
+  void vps_parse(unsigned char *nal_bitstream, hevc::vps *pcVPS, int curLen, parsingLevel level) override;
   void sps_parse(unsigned char *nal_bitstream, hevc::sps *pcSPS, int curLen, parsingLevel level) override;
   void pps_parse(unsigned char *nal_bitstream, hevc::pps *pcPPS, hevc::sps *pcSPS, int curLen, parsingLevel level) override;
   void sei_parse(unsigned char *nal_bitstream, nal_info &nal, int curLen) override;

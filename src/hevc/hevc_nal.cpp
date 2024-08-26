@@ -637,6 +637,118 @@ static inline unsigned int getMaxCUDepthOffset(const hevc::ChromaFormat chFmt, c
   return (chFmt == hevc::CHROMA_422 && quadtreeTULog2MinSize > 2) ? 1 : 0;
 }
 
+void parseNalH265::vps_parse(unsigned char *nal_bitstream, hevc::vps *pcVPS, int curLen, parsingLevel level)
+{
+  unsigned int uiCode;
+
+  xReadCode(4, uiCode, "vps_video_parameter_set_id");
+  pcVPS->setVPSId(uiCode);
+  xReadFlag(uiCode, "vps_base_layer_internal_flag");
+  assert(uiCode == 1);
+  xReadFlag(uiCode, "vps_base_layer_available_flag");
+  assert(uiCode == 1);
+  xReadCode(6, uiCode, "vps_max_layers_minus1");
+  xReadCode(3, uiCode, "vps_max_sub_layers_minus1");
+  pcVPS->setMaxTLayers(uiCode + 1);
+  assert(uiCode + 1 <= MAX_TLAYER);
+  xReadFlag(uiCode, "vps_temporal_id_nesting_flag");
+  pcVPS->setTemporalNestingFlag(uiCode ? true : false);
+  assert(pcVPS->getMaxTLayers() > 1 || pcVPS->getTemporalNestingFlag());
+  xReadCode(16, uiCode, "vps_reserved_0xffff_16bits");
+  assert(uiCode == 0xffff);
+  parsePTL(pcVPS->getPTL(), true, pcVPS->getMaxTLayers() - 1);
+  unsigned int subLayerOrderingInfoPresentFlag;
+  xReadFlag(subLayerOrderingInfoPresentFlag, "vps_sub_layer_ordering_info_present_flag");
+  for (unsigned int i = 0; i <= pcVPS->getMaxTLayers() - 1; i++)
+  {
+    xReadUvlc(uiCode, "vps_max_dec_pic_buffering_minus1[i]");
+    pcVPS->setMaxDecPicBuffering(uiCode + 1, i);
+    xReadUvlc(uiCode, "vps_max_num_reorder_pics[i]");
+    pcVPS->setNumReorderPics(uiCode, i);
+    xReadUvlc(uiCode, "vps_max_latency_increase_plus1[i]");
+    pcVPS->setMaxLatencyIncrease(uiCode, i);
+
+    if (!subLayerOrderingInfoPresentFlag)
+    {
+      for (i++; i <= pcVPS->getMaxTLayers() - 1; i++)
+      {
+        pcVPS->setMaxDecPicBuffering(pcVPS->getMaxDecPicBuffering(0), i);
+        pcVPS->setNumReorderPics(pcVPS->getNumReorderPics(0), i);
+        pcVPS->setMaxLatencyIncrease(pcVPS->getMaxLatencyIncrease(0), i);
+      }
+      break;
+    }
+  }
+
+  assert(pcVPS->getNumHrdParameters() < hevc::MAX_VPS_OP_SETS_PLUS1);
+  assert(pcVPS->getMaxNuhReservedZeroLayerId() < hevc::MAX_VPS_NUH_RESERVED_ZERO_LAYER_ID_PLUS1);
+  xReadCode(6, uiCode, "vps_max_layer_id");
+  pcVPS->setMaxNuhReservedZeroLayerId(uiCode);
+  xReadUvlc(uiCode, "vps_num_layer_sets_minus1");
+  pcVPS->setMaxOpSets(uiCode + 1);
+  for (unsigned int opsIdx = 1; opsIdx <= (pcVPS->getMaxOpSets() - 1); opsIdx++)
+  {
+    for (unsigned int i = 0; i <= pcVPS->getMaxNuhReservedZeroLayerId(); i++)
+    {
+      xReadFlag(uiCode, "layer_id_included_flag[opsIdx][i]");
+      pcVPS->setLayerIdIncludedFlag(uiCode == 1 ? true : false, opsIdx, i);
+    }
+  }
+
+  hevc::TimingInfo *timingInfo = pcVPS->getTimingInfo();
+  xReadFlag(uiCode, "vps_timing_info_present_flag");
+  timingInfo->m_timingInfoPresentFlag = uiCode ? true : false;
+  if (timingInfo->m_timingInfoPresentFlag)
+  {
+    xReadCode(32, uiCode, "vps_num_units_in_tick");
+    timingInfo->m_numUnitsInTick = uiCode;
+    xReadCode(32, uiCode, "vps_time_scale");
+    timingInfo->m_timeScale = uiCode;
+    xReadFlag(uiCode, "vps_poc_proportional_to_timing_flag");
+    timingInfo->m_pocProportionalToTimingFlag = uiCode ? true : false;
+    if (timingInfo->m_pocProportionalToTimingFlag)
+    {
+      xReadUvlc(uiCode, "vps_num_ticks_poc_diff_one_minus1");
+      timingInfo->m_numTicksPocDiffOneMinus1 = uiCode;
+    }
+
+    xReadUvlc(uiCode, "vps_num_hrd_parameters");
+    pcVPS->setNumHrdParameters(uiCode);
+
+    if (pcVPS->getNumHrdParameters() > 0)
+    {
+      pcVPS->createHrdParamBuffer();
+    }
+    for (unsigned int i = 0; i < pcVPS->getNumHrdParameters(); i++)
+    {
+      xReadUvlc(uiCode, "hrd_layer_set_idx[i]");
+      pcVPS->setHrdOpSetIdx(uiCode, i);
+      if (i > 0)
+      {
+        xReadFlag(uiCode, "cprms_present_flag[i]");
+        pcVPS->setCprmsPresentFlag(uiCode == 1 ? true : false, i);
+      }
+      else
+      {
+        pcVPS->setCprmsPresentFlag(true, i);
+      }
+
+      parseHrdParameters(pcVPS->getHrdParameters(i), pcVPS->getCprmsPresentFlag(i), pcVPS->getMaxTLayers() - 1);
+    }
+  }
+
+  xReadFlag(uiCode, "vps_extension_flag");
+  if (uiCode)
+  {
+    while (xMoreRbspData())
+    {
+      xReadFlag(uiCode, "vps_extension_data_flag");
+    }
+  }
+
+  xReadRbspTrailingBits();
+}
+
 void parseNalH265::sps_parse(unsigned char *nal_bitstream, hevc::sps *pcSPS, int curLen, parsingLevel level)
 {
   for (int i = 0; i < curLen; i++)
@@ -649,7 +761,7 @@ void parseNalH265::sps_parse(unsigned char *nal_bitstream, hevc::sps *pcSPS, int
   m_pcBitstream->m_num_held_bits = 0;
   m_pcBitstream->m_held_bits = 1;
   m_pcBitstream->m_numBitsRead = 16;
-  
+
   unsigned int uiCode;
   xReadCode(4, uiCode, "sps_video_parameter_set_id");
   pcSPS->m_VPSId = uiCode;
@@ -1076,7 +1188,7 @@ void parseNalH265::pps_parse(unsigned char *nal_bitstream, hevc::pps *pcPPS, hev
   pcPPS->m_scalingListPresentFlag = uiCode ? true : false;
   if (pcPPS->m_scalingListPresentFlag)
   {
-    parseScalingList(&pcPPS->m_scalingList);    
+    parseScalingList(&pcPPS->m_scalingList);
   }
 
   xReadFlag(uiCode, "lists_modification_present_flag");
@@ -1106,10 +1218,10 @@ void parseNalH265::pps_parse(unsigned char *nal_bitstream, hevc::pps *pcPPS, hev
         switch (hevc::PPSExtensionFlagIndex(i))
         {
         case hevc::PPS_EXT__REXT:
-        {           
+        {
           hevc::TComPPSRExt &ppsRangeExtension = pcPPS->m_ppsRangeExtension;
           assert(!bSkipTrailingExtensionBits);
-          
+
           if (pcPPS->m_useTransformSkip)
           {
             xReadUvlc(uiCode, "log2_max_transform_skip_block_size_minus2");
@@ -1166,7 +1278,7 @@ void parseNalH265::pps_parse(unsigned char *nal_bitstream, hevc::pps *pcPPS, hev
     {
       while (xMoreRbspData())
       {
-        xReadFlag(uiCode, "pps_extension_data_flag");        
+        xReadFlag(uiCode, "pps_extension_data_flag");
       }
     }
   }
@@ -1176,7 +1288,7 @@ void parseNalH265::pps_parse(unsigned char *nal_bitstream, hevc::pps *pcPPS, hev
 void parseNalH265::sei_parse(unsigned char *nal_bitstream, nal_info &nal, int curLen)
 {
   for (int i = 0; i < curLen - 2; i++)
-    m_bits->m_fifo.push_back(nal_bitstream[i + 2]); 
+    m_bits->m_fifo.push_back(nal_bitstream[i + 2]);
   setBitstream(m_bits);
 
   int payloadType = 0;
@@ -1198,8 +1310,8 @@ void parseNalH265::sei_parse(unsigned char *nal_bitstream, nal_info &nal, int cu
   hevc::sps *sps = reinterpret_cast<hevc::sps *>(nal.mpegParamSet->sps);
   nal.sei_type = payloadType;
   nal.sei_length = payloadSize;
-  
+
   sei_handler->xReadSEIPayloadData(payloadType, payloadSize, nal, (hevc::hevc_nal_type)nal.nal_unit_type, sps, m_bits);
-  
+
   delete sei_handler;
 }

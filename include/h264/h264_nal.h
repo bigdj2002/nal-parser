@@ -4,7 +4,7 @@
 #include "h264_type.h"
 #include "h264_vlc.h"
 
-struct parseNalH264 : public parseLib<avc::sps, avc::pps>, public Bitstream, public DecoderParams
+struct parseNalH264 : public parseLib<avc::sps, avc::sps, avc::pps>, public Bitstream, public DecoderParams
 {
   parseNalH264(){};
   virtual ~parseNalH264()
@@ -22,6 +22,7 @@ struct parseNalH264 : public parseLib<avc::sps, avc::pps>, public Bitstream, pub
   };
 
 public:
+  void vps_parse(unsigned char *nal_bitstream, avc::sps *sps, int curLen, parsingLevel level) override;
   void sps_parse(unsigned char *nal_bitstream, avc::sps *sps, int curLen, parsingLevel level) override;
   void pps_parse(unsigned char *nal_bitstream, avc::pps *pps, avc::sps *sps, int curLen, parsingLevel level) override;
   void sei_parse(unsigned char *msg, nal_info &nal, int curLen) override;

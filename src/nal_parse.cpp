@@ -125,6 +125,12 @@ void NALParse::hevc_nal_parse(unsigned char *nal_bitstream, int &nextNalPos, int
     {
       lib.sei_parse(realStream, *nal, curLen);
     }
+    else if (static_cast<hevc::hevc_nal_type>(nal->nal_unit_type) == hevc::hevc_nal_type::NAL_UNIT_VPS)
+    {
+      if (!nal->mpegParamSet->vps)
+        nal->mpegParamSet->vps = new hevc::vps;
+      lib.vps_parse(realStream, reinterpret_cast<hevc::vps *>(nal->mpegParamSet->sps), curLen, level);
+    }
     else if (static_cast<hevc::hevc_nal_type>(nal->nal_unit_type) == hevc::hevc_nal_type::NAL_UNIT_SPS)
     {
       if (!nal->mpegParamSet->sps)

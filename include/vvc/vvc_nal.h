@@ -3,7 +3,7 @@
 #include "vvc_vlc.h"
 #include "nal_parse.h"
 
-class parseNalH266 : public parseLib<vvc::SPS, vvc::PPS>, public VLCReader, public InputBitstream
+class parseNalH266 : public parseLib<vvc::VPS, vvc::SPS, vvc::PPS>, public VLCReader, public InputBitstream
 {
 public:
   parseNalH266(){};
@@ -38,6 +38,7 @@ protected:
   void alfFilter(vvc::AlfParam &alfParam, const bool isChroma, const int altIdx);
 
 public:
+  void vps_parse(unsigned char *nal_bitstream, vvc::VPS *pcVPS, int curLen, parsingLevel level) override;
   void sps_parse(unsigned char *nal_bitstream, vvc::SPS *pcSPS, int curLen, parsingLevel level) override;
   void pps_parse(unsigned char *nal_bitstream, vvc::PPS *pcPPS, vvc::SPS *pcSPS, int curLen, parsingLevel level) override;
   void aps_parse(unsigned char *nal_bitstream, vvc::APS *aps, int curLen, parsingLevel level);

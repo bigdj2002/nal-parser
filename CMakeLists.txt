@@ -21,5 +21,20 @@ file(GLOB_RECURSE SOURCES
 # Add the main library target
 add_library(nalparser ${SOURCES})
 
+# Set installation directories
+set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/install)
+set(INSTALL_BIN_DIR ${CMAKE_INSTALL_PREFIX}/bin)
+set(INSTALL_INCLUDE_DIR ${CMAKE_INSTALL_PREFIX}/include)
+set(INSTALL_LIB_DIR ${CMAKE_INSTALL_PREFIX}/lib)
+
+# Specify installation rules
+install(TARGETS nalparser
+        RUNTIME DESTINATION ${INSTALL_BIN_DIR} # For executable files
+        LIBRARY DESTINATION ${INSTALL_LIB_DIR} # For shared libraries
+        ARCHIVE DESTINATION ${INSTALL_LIB_DIR} # For static libraries
+)
+
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION ${INSTALL_INCLUDE_DIR})
+
 # Add the tests
 add_subdirectory(tests)

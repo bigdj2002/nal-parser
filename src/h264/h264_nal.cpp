@@ -132,6 +132,11 @@ static const int ReadVUI(Bitstream *s, avc::sps *sps, DecoderParams *p_Dec)
   return 0;
 }
 
+void parseNalH264::vps_parse(unsigned char *nal_bitstream, avc::sps *sps, int curLen, parsingLevel level)
+{
+  // Meaningless method to prevent compilation error
+}
+
 void parseNalH264::sps_parse(unsigned char *nal_bitstream, avc::sps *sps, int curLen, parsingLevel level)
 {
   unsigned i;

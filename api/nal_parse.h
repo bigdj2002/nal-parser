@@ -177,7 +177,7 @@ private:
   std::vector<uint8_t> UnescapeRbsp(const uint8_t *data, size_t length);
 };
 
-template <typename T1, typename T2>
+template <typename T1, typename T2, typename T3>
 class parseLib
 {
 public:
@@ -185,7 +185,8 @@ public:
   virtual ~parseLib(){};
 
 public:
-  virtual void sps_parse(unsigned char *nal_bitstream, T1 *pcSPS, int curLen, parsingLevel level) = 0;
-  virtual void pps_parse(unsigned char *nal_bitstream, T2 *pcPPS, T1 *pcSPS, int curLen, parsingLevel level) = 0;
+  virtual void vps_parse(unsigned char *nal_bitstream, T1 *pcVPS, int curLen, parsingLevel level) = 0;
+  virtual void sps_parse(unsigned char *nal_bitstream, T2 *pcSPS, int curLen, parsingLevel level) = 0;
+  virtual void pps_parse(unsigned char *nal_bitstream, T3 *pcPPS, T2 *pcSPS, int curLen, parsingLevel level) = 0;
   virtual void sei_parse(unsigned char *nal_bitstream, nal_info &nal, int curLen) = 0;
 };

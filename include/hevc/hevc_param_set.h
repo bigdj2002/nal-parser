@@ -19,6 +19,8 @@ namespace hevc
   static const int MAX_TLAYER = 7;
   static const int MAX_CPB_CNT = 32;
   static const int MAX_QP_OFFSET_LIST_SIZE = 6;
+  static const int MAX_VPS_OP_SETS_PLUS1 = 1024;
+  static const int MAX_VPS_NUH_RESERVED_ZERO_LAYER_ID_PLUS1 = 1;
   namespace Level
   {
     enum Tier
@@ -380,6 +382,85 @@ namespace hevc
     bool m_highPrecisionOffsetsEnabledFlag;
     bool m_persistentRiceAdaptationEnabledFlag;
     bool m_cabacBypassAlignmentEnabledFlag;
+  };
+
+  struct vps
+  {
+    int m_VPSId;
+    unsigned int m_uiMaxTLayers;
+    unsigned int m_uiMaxLayers;
+    bool m_bTemporalIdNestingFlag;
+
+    unsigned int m_numReorderPics[MAX_TLAYER];
+    unsigned int m_uiMaxDecPicBuffering[MAX_TLAYER];
+    unsigned int m_uiMaxLatencyIncrease[MAX_TLAYER]; // Really max latency increase plus 1 (value 0 expresses no limit)
+
+    unsigned int m_numHrdParameters;
+    unsigned int m_maxNuhReservedZeroLayerId;
+    std::vector<TComHRD> m_hrdParameters;
+    std::vector<unsigned int> m_hrdOpSetIdx;
+    std::vector<bool> m_cprmsPresentFlag;
+    unsigned int m_numOpSets;
+    bool m_layerIdIncludedFlag[MAX_VPS_OP_SETS_PLUS1][MAX_VPS_NUH_RESERVED_ZERO_LAYER_ID_PLUS1];
+
+    TComPTL m_pcPTL;
+    TimingInfo m_timingInfo;
+
+  public:
+    void createHrdParamBuffer()
+    {
+      m_hrdParameters.resize(getNumHrdParameters());
+      m_hrdOpSetIdx.resize(getNumHrdParameters());
+      m_cprmsPresentFlag.resize(getNumHrdParameters());
+    }
+
+    TComHRD *getHrdParameters(unsigned int i) { return &m_hrdParameters[i]; }
+    const TComHRD *getHrdParameters(unsigned int i) const { return &m_hrdParameters[i]; }
+    unsigned int getHrdOpSetIdx(unsigned int i) const { return m_hrdOpSetIdx[i]; }
+    void setHrdOpSetIdx(unsigned int val, unsigned int i) { m_hrdOpSetIdx[i] = val; }
+    bool getCprmsPresentFlag(unsigned int i) const { return m_cprmsPresentFlag[i]; }
+    void setCprmsPresentFlag(bool val, unsigned int i) { m_cprmsPresentFlag[i] = val; }
+
+    int getVPSId() const { return m_VPSId; }
+    void setVPSId(int i) { m_VPSId = i; }
+
+    unsigned int getMaxTLayers() const { return m_uiMaxTLayers; }
+    void setMaxTLayers(unsigned int t) { m_uiMaxTLayers = t; }
+
+    unsigned int getMaxLayers() const { return m_uiMaxLayers; }
+    void setMaxLayers(unsigned int l) { m_uiMaxLayers = l; }
+
+    bool getTemporalNestingFlag() const { return m_bTemporalIdNestingFlag; }
+    void setTemporalNestingFlag(bool t) { m_bTemporalIdNestingFlag = t; }
+
+    void setNumReorderPics(unsigned int v, unsigned int tLayer) { m_numReorderPics[tLayer] = v; }
+    unsigned int getNumReorderPics(unsigned int tLayer) const { return m_numReorderPics[tLayer]; }
+
+    void setMaxDecPicBuffering(unsigned int v, unsigned int tLayer)
+    {
+      assert(tLayer < MAX_TLAYER);
+      m_uiMaxDecPicBuffering[tLayer] = v;
+    }
+    unsigned int getMaxDecPicBuffering(unsigned int tLayer) const { return m_uiMaxDecPicBuffering[tLayer]; }
+
+    void setMaxLatencyIncrease(unsigned int v, unsigned int tLayer) { m_uiMaxLatencyIncrease[tLayer] = v; }
+    unsigned int getMaxLatencyIncrease(unsigned int tLayer) const { return m_uiMaxLatencyIncrease[tLayer]; }
+
+    unsigned int getNumHrdParameters() const { return m_numHrdParameters; }
+    void setNumHrdParameters(unsigned int v) { m_numHrdParameters = v; }
+
+    unsigned int getMaxNuhReservedZeroLayerId() const { return m_maxNuhReservedZeroLayerId; }
+    void setMaxNuhReservedZeroLayerId(unsigned int v) { m_maxNuhReservedZeroLayerId = v; }
+
+    unsigned int getMaxOpSets() const { return m_numOpSets; }
+    void setMaxOpSets(unsigned int v) { m_numOpSets = v; }
+    bool getLayerIdIncludedFlag(unsigned int opsIdx, unsigned int id) const { return m_layerIdIncludedFlag[opsIdx][id]; }
+    void setLayerIdIncludedFlag(bool v, unsigned int opsIdx, unsigned int id) { m_layerIdIncludedFlag[opsIdx][id] = v; }
+
+    TComPTL *getPTL() { return &m_pcPTL; }
+    const TComPTL *getPTL() const { return &m_pcPTL; }
+    TimingInfo *getTimingInfo() { return &m_timingInfo; }
+    const TimingInfo *getTimingInfo() const { return &m_timingInfo; }
   };
 
   struct sps

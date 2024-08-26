@@ -1183,6 +1183,11 @@ void parseNalH266::dpb_parameters(int maxSubLayersMinus1, bool subLayerInfoFlag,
   }
 }
 
+void parseNalH266::vps_parse(unsigned char *nal_bitstream, vvc::VPS *pcVPS, int curLen, parsingLevel level)
+{
+
+}
+
 void parseNalH266::sps_parse(unsigned char *nal_bitstream, vvc::SPS *pcSPS, int curLen, parsingLevel level)
 {
   uint32_t uiCode;
